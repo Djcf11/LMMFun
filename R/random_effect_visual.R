@@ -18,4 +18,3 @@ random_effect_visual <- function(data,
                 facet_wrap(paste("~", identifier))
         p
 }
-
