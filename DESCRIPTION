@@ -9,9 +9,9 @@ License: What license is it under?
 Encoding: UTF-8
 LazyData: true
 Imports: 
-        ggplot2 <= (3.3.5),
-        lme4 <= (1.1-27.1),
-        dplyr <= (1.0.7),
-        tidyr <= (1.1.4),
-        caret <= (6.0-92),
-        ModelMetrics <=(1.2.2.2)
+        ggplot2<= (3.3.5),
+        lme4<= (1.1-27.1),
+        dplyr<= (1.0.7),
+        tidyr<= (1.1.4),
+        caret<= (6.0-92),
+        ModelMetrics<= (1.2.2.2)
