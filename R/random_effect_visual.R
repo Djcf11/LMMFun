@@ -16,3 +16,4 @@ random_effect_visual <- function(data,
                 ggplot2::facet_wrap(paste("~", identifier))
         p
 }
+
