@@ -1,18 +1,23 @@
 ---
-title: "Vingette: LMMFun"
+title: "Vignette: LMMFun"
 author: "Dillon Frisco"
 date: "6/8/2022"
 output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(echo = FALSE,
+                      message = FALSE)
 ```
 
-```{r}
-library(lme4)
+```{r Libraries}
+library(lme4) # Mixed model fitting
 library(ggplot2)
 library(caret)
+library(ModelMetrics)
+library(tidyr)
+library(dplyr)
+library(knitr)
 ```
 
 
@@ -22,8 +27,7 @@ This package provides an overview of my R package designed to help with Linear M
 - Cross validation splits(Validation Set, K-folds, Leave-One-Out)
 - Fitting linear mixed models
 
-
-The primary engine for linear mixed model fitting will be the lme4 package.
+The primary engine for linear mixed model fitting is the lme4 package.
 
 This is example *sleepstudy* data set comes from the lme4 package.
 
@@ -34,18 +38,20 @@ Variables:
 - Days : Number of days of sleep deprivation
 - Subject : Subject number on which the observation was made
 
-```{r}
+Below is a sample of our sleep data.
+
+```{r sleep data table}
 
 data <- sleepstudy
 
-head(data)
+head(data) %>% kable(., caption = "Sleepstudy Sample data")
 
 ```
 
-Because we are doing a linear mixed model analysis lets visualize our data with respect to our potential random effects. In this case we will use Days and Subject. For visualization we use a function that makes use of the ggplot2 package.
 
-```{r}
+Because we are doing a linear mixed model analysis lets visualize our data with respect to our potential random effects. In this case we will use **Days** and **Subject**.
 
+```{r random_effect_visual}
 
 random_effect_visual <- function(data, 
                                  independent_var,
@@ -65,38 +71,21 @@ identifier = "Subject")
 
 ```
 
-Next we look at our function that assists in data splits for cross validation. 
+Next we look at the function that assists in data splits for validation set cross validation. 
 
-Function for cross validation
+Function for validation set cross validation
 -arguments
-        -data
-        -test/train vs. leave-one-out
-        -split
--output list
-        - training data
-        - test data
-        
-```{r}
-# k- fold cross validation
+        -data : data frame with outcomes and random effects
+        -split : ratio of training data to testing data
+                Default is a 70:30 split with 70% of subjects used for training and 30%
+                for testing
+        - identifiers : Column for subject ids (or alternate random effect)
+-output 
+        - train subject index
 
-data = data
-k = 10
-identifiers = "Subject"
+Below an example of the training index. This  index is used to extract subject data from the full data set.
 
-k_fold_lmm_split <- function(data, 
-                             k = 5,
-                             identifiers){
-        
-   unique_ids <- unique(data[[paste(identifiers)]])
-      
-   folds <- createFolds(unique(unique_ids), k = 10)
-   
-   folds
-}
-
-folds <- k_fold_lmm_split(data = data, 
-                 k = 10, 
-                 identifiers = "Subject")
+```{r validation_set_lmm_split function}
 
 # Validation split approach
         # defaults to a 
@@ -115,9 +104,82 @@ validation_set_lmm_split <- function(data, identifiers, train_split = .7){
    train_sample
 }
 
-train_set <- validation_set_lmm_split(data, identifiers = "Subject")
+```
+
+Example code:
+
+```{r extract training set}
+
+train_set <- validation_set_lmm_split(data, identifiers = "Subject", train_split = .7)
 
 ```
+
+train_set <- validation_set_lmm_split(data, identifiers = "Subject", train_split = .7)
+
+Output:
+
+```{r show training set}
+
+kable(train_set, 
+      caption = "Training data index from validation set split")
+
+```
+
+This index will be passed to the linear mixed model function that takes validation set inputs i.e. *lmm_validation_set*.
+
+But before the linear mixed model fitting we create a training index using the k-folds method.
+
+```{r k_fold_lmm_split function}
+# k- fold cross validation
+
+data = data
+
+identifiers = "Subject"
+
+k_fold_lmm_split <- function(data, 
+                             k = 5,
+                             identifiers){
+        
+   unique_ids <- unique(data[[paste(identifiers)]])
+      
+   folds <- createFolds(unique(unique_ids), k = k)
+   
+   folds
+}
+
+```
+
+Function for k-fold validation indices for cross validation
+
+-arguments
+        -data : data frame with outcomes and random effects
+        -k : number of folds to divide data into for training and testing
+        - identifiers : Column for subject ids (or alternate random effect)
+-output 
+        - train subject indices
+
+```{r kfolds training set extraction}
+
+train_folds <- k_fold_lmm_split(data = data, 
+                 k = 5, 
+                 identifiers = "Subject")
+
+```
+
+Example code:
+
+training_folds <- k_fold_lmm_split(data = data, 
+                 k = 5, 
+                 identifiers = "Subject")
+
+Output:
+```{r}
+
+train_folds
+
+```
+
+These indices can now be inputed as an argument to the l
 
 Function for linear mixed model fitting
 
@@ -133,17 +195,30 @@ Function for linear mixed model fitting
 
 Now we take the data from the validation-fold cross validation splitting and use it to fit linear mixed models.
 
-```{r validation set}
+lmm_validation_set function
 
+-arguments
+        -data : data frame with outcomes and random effects
+        - training_index : validation set training index
+        - outcome : primary model outcome (this is what we are predicting)
+        - fixed_effect : linear mixed model fixed effects
+        - random_slope : linear mixed model random slope
+        - random_intercept : linear mixed model random intercept (i.e. subject ids)
+-output (list)
+        - lmm_object : trained linear mixed model
+        - lmm_formula : linear mixed model formula
+        - test_mse : test set mean squared error for model performance
+        
 
-data
-train_set
-outcome = "Reaction"
-fixed_effect = "Days"
-random_slope = NULL
-random_intercept = "Subject"
+```{r lmm_validation_set function}
 
-lmm_validation_set <- function(data, identifiers, train_set, outcome, fixed_effect, random_slope, random_intercept){
+lmm_validation_set <- function(data,
+                               identifiers,
+                               training_index,
+                               outcome, 
+                               fixed_effect, 
+                               random_slope = NULL,
+                               random_intercept){
 
         unique_ids <- unique(data[[paste(identifiers)]])
 # extract training data
@@ -173,14 +248,13 @@ random_effect_form <- paste("(", 1, "|",random_intercept,")")
 # create full linear mixed model formula
 lmm_formula <- paste(outcome, "~", fixed_effect_form, "+", random_effect_form)
 
-
 if(nrow(unique(lmm_train_data[random_intercept]))>1){
 #fit linear mixed model
  lmm_train_obj <- lmer(formula(lmm_formula), data = lmm_train_data)
 
 # use trained model and test data to output predictions
  lmm_test_data$predicted <-  predict(lmm_train_obj, 
-                                     newdata = lmm_test_data[, c("Days",  "Subject")], allow.new.levels = TRUE)
+                                     newdata = lmm_test_data[, c(fixed_effect,  random_intercept)], allow.new.levels = TRUE)
 
 # calculate mean squared errors
  test_set_mse <-  mse(lmm_test_data[,"predicted"], lmm_test_data[,outcome])
@@ -200,188 +274,211 @@ output
 
 ```
 
-```{r Test Set Validation}
-lmm_validation_set(data,
+In this sleep study example our outcome variable is Reaction (reaction time), Our fixed effect is Days, and our random intercept is Subject. 
+
+Example code:
+
+lmm_validated <- lmm_validation_set(data,
                         identifiers = "Subject",
                         train_set,
                         outcome = "Reaction",
                         fixed_effect = "Days",
                         random_slope = NULL,
                         random_intercept = "Subject")
+
+```{r Test Set Validation}
+
+lmm_validated <- lmm_validation_set(data,
+                        identifiers = "Subject",
+                        train_set,
+                        outcome = "Reaction",
+                        fixed_effect = "Days",
+                        random_slope = NULL,
+                        random_intercept = "Subject")
+
 ```
 
+Output:
 
-```{r}
+```{r lmm_validated output}
 
+lmm_validated
 
-lmm_k_fold_validation <- function(data, unique_ids, list_folds){}
+```
 
-errors <- c()
+Hear we can see that our estimate test mean squared error from the validation set approach is 2644.347. We will compare that to our error from k-folds validation. For simplicity we will use the same linear mixed model formula. 
 
-for(i in seq_along(test_sample)){
+Now we take the data from the k-fold cross validation splitting and use it to fit linear mixed models using the lmm_k_fold_validation function.
+
+lmm_k_fold_validation function
+
+-arguments
+        -data : data frame with outcomes and random effects
+        - identifiers : 
+        - training_folds : k-fold training set index
+        - outcome : primary model outcome (this is what we are predicting)
+        - fixed_effect : linear mixed model fixed effects
+        - random_slope : linear mixed model random slope
+        - random_intercept : linear mixed model random intercept (i.e. subject ids)
+-output (list)
+        - lmm_formula : linear mixed model formula
+         -mean_test_error = test set mean squared error for model performance across k-folds,
+          fold_errors : test mse per fold,
+          -fold_count = number of folds
+
+```{r lmm_k_fold_validation function}
+
+lmm_k_fold_validation <- function(data,
+                                  identifiers, 
+                                  training_folds,
+                                  outcome,
+                                  fixed_effect,
+                                  random_slope = NULL,
+                                  random_intercept
+                                  ){
+# extract unique identifiers
+        
+unique_ids <- unique(data[[paste(identifiers)]])
 
 # extract training data
- lmm_train_data <- data %>% filter(Subject %in% unique_ids[test_sample[[i]]])
+
+        # select ids with found in the training set
+ subject_vector <- data[, random_intercept] %in% unique_ids[train_set]
+
+#initialize error vector
+errors <- c()
+
+for(i in seq_along(training_folds)){
+
+# create subject vector from fold indices
+ subject_vector <- data[, random_intercept] %in% unique_ids[training_folds[[i]]]
+         
+# extract training set
+ lmm_train_data <- data[subject_vector,]
 
 # extract test data
- lmm_test_data <- data %>% filter(Subject %in% unique_ids[-test_sample[[i]]])
+ lmm_test_data <- data[!subject_vector,]
+ 
+# create random effect formula
+ if(is.null(random_slope)){
+random_effect_form <- paste("(", 1, "|", random_intercept,")")
+ } else {
+        random_effect_form <-  paste("(", random_slope, "|", random_intercept,")")
+}
 
-if(length(unique(lmm_train_data$Subject))>1){
+ # create fixed effect formula 
+ if(length(fixed_effect) == 1){
+        fixed_effect_form <- paste(fixed_effect)
+        } else{
+         fixed_effect_form <- paste(fixed_effect, collapse = "+")}
+
+# create full linear mixed model formula
+lmm_formula <- paste(outcome, "~", fixed_effect_form, "+", random_effect_form)
+
+if(nrow(unique(lmm_train_data[random_intercept]))>1){
         
 #fit linear mixed model
- lmm_train_obj <- lmer(Reaction ~ Days + (1|Days), data = lmm_train_data)
+ lmm_train_obj <- lmer(formula(lmm_formula), data = lmm_train_data)
 
 # use trained model and test data to output predictions
+ 
  lmm_test_data$predicted <-  predict(lmm_train_obj, 
-                                     newdata = lmm_test_data[, c("Days",  "Subject")], allow.new.levels = TRUE)
+                                     newdata = lmm_test_data[,
+                                                          c(fixed_effect,random_intercept)], 
+                                     allow.new.levels = TRUE)
+ 
 # calculate mean squared errors
- current_cycle_mse <-  mse(lmm_test_data$Reaction, 
-     lmm_test_data$predicted)
+ current_cycle_mse <-  mse(lmm_test_data[, outcome], 
+                           lmm_test_data[, "predicted"])
 
 # append mse errors
  errors <- c(errors, 
              current_cycle_mse)
 } else{
-# if the fold only has 1 subject or 1 level of a grouping variable then just use a linear model to predict values for other subjects
-        
-        #fit linear mixed model
- lmm_train_obj <- lm(Reaction ~ Days, data = lmm_train_data)
-
-# use trained model and test data to output predictions
- lmm_test_data$predicted <-  predict(lmm_train_obj, 
-                                     newdata = lmm_test_data[, c("Days",  "Subject")], allow.new.levels = TRUE)
-# calculate mean squared errors
- current_cycle_mse <-  mse(lmm_test_data$Reaction, lmm_test_data$predicted)
-
-# append mse errors
- errors <- c(errors, 
-             current_cycle_mse)
+        warning("Fold only has 1 subject. Can not fit Linear Mixed Model.")
+        next 
+        }
 }
- 
- mean(errors)
- 
+output <- list(lmm_formula = lmm_formula,
+               mean_test_error = mean(errors),
+               fold_errors = errors,
+               fold_count = length(training_folds))
+
+output
 }
 
-errors
 ```
 
+We input mostly the same argument values as the validation set function, however we need to add the argument for folds to iterated linear mixed models over.
 
+Example code:
 
-Now we take the data from the k-fold cross validation splitting and use it to fit linear mixed models.
+lmm_k_fold_validated <- lmm_k_fold_validation( data,
+ identifiers = "Subject",
+ training_folds = train_folds,
+ outcome = "Reaction",
+ fixed_effect = "Days",
+ random_slope = NULL,
+ random_intercept = "Subject")
 
-```{r k-fold lmm}
+```{r lmm_k_fold_validation output}
 
-errors <- c()
+lmm_k_fold_validated <- lmm_k_fold_validation( data,
+ identifiers = "Subject",
+ training_folds = train_folds,
+ outcome = "Reaction",
+ fixed_effect = "Days",
+ random_slope = NULL,
+ random_intercept = "Subject")
 
-for(i in seq_along(folds)){
-
-# extract training data
- lmm_train_data <- data %>% filter(Subject %in% unique_ids[folds[[i]]])
-
-# extract test data
- lmm_test_data <- data %>% filter(Subject %in% unique_ids[-folds[[i]]])
-
-if(length(unique(lmm_train_data$Subject))>1){
-        
-#fit linear mixed model
- lmm_train_obj <- lmer(Reaction ~ Days + (1|Days), data = lmm_train_data)
-
-# use trained model and test data to output predictions
- lmm_test_data$predicted <-  predict(lmm_train_obj, 
-                                     newdata = lmm_test_data[, c("Days",  "Subject")], allow.new.levels = TRUE)
-# calculate mean squared errors
- current_cycle_mse <-  mse(lmm_test_data$Reaction, 
-     lmm_test_data$predicted)
-
-# append mse errors
- errors <- c(errors, 
-             current_cycle_mse)
-} else{
-# if the fold only has 1 subject or 1 level of a grouping variable then just use a linear model to predict values for other subjects
-        
-        #fit linear mixed model
- lmm_train_obj <- lm(Reaction ~ Days, data = lmm_train_data)
-
-# use trained model and test data to output predictions
- lmm_test_data$predicted <-  predict(lmm_train_obj, 
-                                     newdata = lmm_test_data[, c("Days",  "Subject")], allow.new.levels = TRUE)
-# calculate mean squared errors
- current_cycle_mse <-  mse(lmm_test_data$Reaction, lmm_test_data$predicted)
-
-# append mse errors
- errors <- c(errors, 
-             current_cycle_mse)
-}
- 
- mean(errors)
- 
-}
-
-errors
 ```
 
-looks like the test set does a better job of prediction than k-fold
+k-fold Output:
 
-```{r}
+```{r lmm_k_fold_validated}
+lmm_k_fold_validated
+```
+
+Looking at the mse resulting from the validation set approach vs the k-fold approach we see that the validation set approach provides a lower error rate compared to the k-fold approach. 
+
+```{r mse_table}
+mse_table <- data.frame("Validation Set" = lmm_validated$test_mse, 
+           "K-Fold" = lmm_k_fold_validated$mean_test_error)
+
+mse_table %>% kable(., caption = "Errors from Linear Mixed Model cross validations.")
+```
+
+In this case it may be that a validation set approach is a sufficient method of linear mixed model cross validation. 
+
+```{r, eval=FALSE}
 # random effect visual outcome measure
 
-data = lmm_test_data
-prediction_independent = "predicted"
-continous_var = "Days"
-identifier = "Subject"
-
-random_effect_visual <- function(data, 
-                                 independent_var,
-                                 continous_var,
-                                 identifier,
-                                 prediction_independent = NULL){
-        
-if(is.null(prediction_independent)){p <- ggplot(data)+
-        geom_point(aes_string(x = paste(continous_var), 
-                              y = paste(independent_var)))+
-                facet_wrap(paste("~", identifier))} else {
-        p <- ggplot(data)+
-        geom_point(aes_string(x = paste(continous_var), 
-                              y = paste(independent_var)))+
-        geom_point(aes_string(x = paste(continous_var),
-                              y = paste(prediction_independent))) +
-                facet_wrap(paste("~", identifier))}
-  p      
-}
-
-ggplot(data)+
-        geom_point(aes_string(x = paste(continous_var), 
-                              y = paste(independent_var)))+
-        geom_point(aes_string(x = paste(continous_var),
-                              y = paste(prediction_independent)),
-                   color = "blue") +
-                facet_wrap(paste("~", identifier))
-
-
+# data
+# prediction_independent = "predicted"
+# continous_var = "Days"
+# identifier = "Subject"
+# 
+# random_effect_visual_fit <- function(data, 
+#                                  independent_var,
+#                                  continous_var,
+#                                  identifier,
+#                                  prediction_independent = NULL){
+#         
+# if(is.null(prediction_independent)){p <- ggplot(data)+
+#         geom_point(aes_string(x = paste(continous_var), 
+#                               y = paste(independent_var)))+
+#                 facet_wrap(paste("~", identifier))} else {
+#         p <- ggplot(data)+
+#         geom_point(aes_string(x = paste(continous_var), 
+#                               y = paste(independent_var)))+
+#         geom_point(aes_string(x = paste(continous_var),
+#                               y = paste(prediction_independent))) +
+#                 facet_wrap(paste("~", identifier))}
+#   p      
+# }
 
 ```
         
-        
-Function for lasso model
--arguments 
-        - linear-mixed model 
-        
-- output
-        - trained lassoed model object
-        
-Function for autocorrelation
-
-
-Final comparison of models on test set
--
-
-
-
-
-
-
-
-
 ## References
 
 1. Bates D, Mächler M, Bolker B, Walker S (2015). “Fitting Linear Mixed-Effects Models Using lme4.” Journal of Statistical Software, 67(1), 1–48. doi: 10.18637/jss.v067.i01

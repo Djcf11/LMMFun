@@ -4,14 +4,15 @@
 #'
 #' @return Faceted ggplot2 object.
 #'
+
 random_effect_visual <- function(data,
                                  independent_var,
                                  continous_var,
                                  identifier){
-
-        p <- ggplot(data)+
-                geom_point(aes_string(x = paste(continous_var),
+        p <- ggplot2::ggplot(data)+
+                ggplot2::geom_point(
+                        ggplot2::aes_string(x = paste(continous_var),
                                       y = paste(independent_var)))+
-                facet_wrap(paste("~", identifier))
+                ggplot2::facet_wrap(paste("~", identifier))
         p
 }
