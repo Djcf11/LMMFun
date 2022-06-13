@@ -1,5 +1,5 @@
 #'lmm_k_fold_validation
-#'
+#' Fits linear mixed model using k-fold subjects
 #'
 
 lmm_k_fold_validation <- function(data,

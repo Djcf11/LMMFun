@@ -1,5 +1,5 @@
 #'validation_set_lmm_split
-#'
+#' Creates a validation train test set split by a set ratio i.e. 70/30
 #'
 validation_set_lmm_split <- function(data, identifiers, train_split = .7){
         # Default is 70 30 split

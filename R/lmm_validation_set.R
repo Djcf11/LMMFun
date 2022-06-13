@@ -1,5 +1,5 @@
 #'lmm_validation_set
-#'
+#'  Fits linear mixed model using a validation set of subjects
 #'
 
 lmm_validation_set <- function(data,

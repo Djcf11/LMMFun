@@ -1,5 +1,5 @@
 #'k_fold_lmm_split
-#'
+#' Creates k-folds for model training
 #'
 k_fold_lmm_split <- function(data,
                              k = 5,
