@@ -13,4 +13,5 @@ Imports:
         lme4,
         dplyr,
         tidyr,
-        caret
+        caret,
+        ModelMetrics

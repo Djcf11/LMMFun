@@ -7,7 +7,7 @@ k_fold_lmm_split <- function(data,
 
         unique_ids <- unique(data[[paste(identifiers)]])
 
-        folds <- createFolds(unique(unique_ids), k = k)
+        folds <- caret::createFolds(unique(unique_ids), k = k)
 
         folds
 }

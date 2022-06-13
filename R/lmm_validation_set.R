@@ -40,14 +40,14 @@ lmm_validation_set <- function(data,
 
         if(nrow(unique(lmm_train_data[random_intercept]))>1){
                 #fit linear mixed model
-                lmm_train_obj <- lmer(formula(lmm_formula), data = lmm_train_data)
+                lmm_train_obj <- lme4::lmer(formula(lmm_formula), data = lmm_train_data)
 
                 # use trained model and test data to output predictions
                 lmm_test_data$predicted <-  predict(lmm_train_obj,
                                                     newdata = lmm_test_data[, c(fixed_effect,  random_intercept)], allow.new.levels = TRUE)
 
                 # calculate mean squared errors
-                test_set_mse <-  mse(lmm_test_data[,"predicted"], lmm_test_data[,outcome])
+                test_set_mse <-  ModelMetrics::mse(lmm_test_data[,"predicted"], lmm_test_data[,outcome])
 
         } else{
                 stop("Only one subject in train set. Cannot fit linear mixed model on one subject.")

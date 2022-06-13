@@ -52,7 +52,7 @@ lmm_k_fold_validation <- function(data,
                 if(nrow(unique(lmm_train_data[random_intercept]))>1){
 
                         #fit linear mixed model
-                        lmm_train_obj <- lmer(formula(lmm_formula), data = lmm_train_data)
+                        lmm_train_obj <- lme4::lmer(formula(lmm_formula), data = lmm_train_data)
 
                         # use trained model and test data to output predictions
 
@@ -62,8 +62,8 @@ lmm_k_fold_validation <- function(data,
                                                             allow.new.levels = TRUE)
 
                         # calculate mean squared errors
-                        current_cycle_mse <-  mse(lmm_test_data[, outcome],
-                                                  lmm_test_data[, "predicted"])
+                        current_cycle_mse <-  ModelMetrics::mse(lmm_test_data[, outcome],
+                                                                lmm_test_data[, "predicted"])
 
                         # append mse errors
                         errors <- c(errors,
